@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>My Sketch</title>
+
+    <!-- Load the Processing.js library -->
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/processing.js/1.6.0/processing.min.js"></script>
+	</head>
+	<body>
+		<script type="application/processing">
+      /* (!)(Readme)
+      Actual visualization of a (Binary Search Tree) with (correct placement) for
+      each and every (nodes) in the tree.
+
+      This visualization gives viewers a better understanding of
+      (where each node) (gets placed) inside the (BST) according to
+      (its parent) & its (insert order)
+
+      (!) We're traversing the (BST) with
+      (level-order traversal) (fastest way to traverse) a tree. Meaning a
+      (queue interface) needs to be implemented in order to do so, since
+      Processing JS (does not) have a (queue interface) built-in to the language
+
+      (!) The purpose of (filled & non-filled node circle) is for the tree to display
+      (all of its nodes) within the (display window). Otherwise there woundn't be enough room
+      to display (all the nodes)
+
+      (!) Every time (a node) gets (inserted to BST), (that node) and (every other nodes)
+      on the (same level) will (automatically move themselves) to (their correct placement within BST)
+
+      (!) A (node circle) is (filled) when (a node) is (greater than its parent)
+      which (equivalents) to (placing the node on the right of its parent) and vice-versa
+  */
+
+  // (!) (Global variables) (top of food chain)
+
+      int diameter;            // (circle's diameter) for (each node) (global)
+
+      // Global val[] to (insert to BST)
+      int[] val = {70, 30, 90, 98, 96, 20, 25, 29, 23, 40, 35, 39, 31, 100, 99, 95, 50, 45, 340, 230, 120, 10, 60, 80, 85, 89, 81, 75, 71, 79, -500, -230, 400, 1000, 390};
+
+      // To iterate thru val[] (global)
+      int i = 0;
+
+  // (!) Start here
+  void setup() {
+      size(800,600); fill(255); stroke(255);
+      background(0); frameRate(40);
+
+      diameter = width / 20;   // (Node's circle) (global)
+      bst = new BinaryTree();  // Construct (BST)
+  }
+
+  // (!) Draw loop
+  void draw() {
+      background(0);
+
+      // Animation method()
+      bst.display();           // Display (BST) & its (nodes insertion)
+  }
+
+  // (Queue Interface) (constructor)
+  interface Queue<Object> {
+      void enqueue(Object object);
+      boolean isEmpty();
+      Object dequeue();
+      int size();
+  }
+
+  // Basic (node class) for (Binary Tree)
+  class Node {
+      int val;                        // Node's input val
+      int level;                      // Level of each Node
+
+      Node next, prev;                // Pointers for (LinkedList Queue)
+      Node left, right;               // Pointers for BST
+      Node parent;                    // Back to parent's pointer
+
+      int xPos, yPos;                 // Node's position
+      int parentyPos;                 // (Parent path)'s yPos
+      int childyPos;                  // (Child path)'s yPos
+
+      boolean inserted;               // To tell if a (node) is (inserted) into (BST)
+      boolean insertL, insertR;       // To work out node's xPos based on (its parent xPos)
+      boolean moveToRoot;             // Boolean for (top)
+      boolean toRootBottom;           // Boolean for (top)
+      boolean toStartPos;             // Boolean for (top)
+
+      boolean moveLeft, moveRight;    // For (tree2 non-updated node)
+      boolean importNodePos;          // Boolean for (top) to import (tree1 node pos) (only once)
+
+      // Constructor 1 for Linked Queue (top node)(for insertion to BST)
+      Node(int val) {
+          this.val = val;
+          next = null;
+          prev = null;
+
+          inserted = false;
+          moveToRoot = false;
+          toRootBottom = false;
+          toStartPos = false;
+
+          importNodePos = false;
+          insertL = insertR = false;
+      }
+
+      // Constructor 2 for (BST nodes)
+      Node(int val, int level, Node parent, int yPos) {
+          this.parent = parent;
+          this.val = val;
+          this.level = level;
+          this.yPos = yPos;
+
+          left = right = null;
+          insertL = insertR = false;
+          moveLeft = moveRight = false;
+      }
+
+      // Method() to work out (current node xPos) based on (its parent)
+      void childxPos() {
+          if (this.parent != null) {
+              // Insert right
+              if (this.val > this.parent.val) {this.insertR = true;}
+
+              // Insert left
+              else {this.insertL = true;}
+          }
+      }
+
+      // Import (tree1 updated node)'s (childPath's yPos) & (parentPath xPos & yPos) into..
+      //..(tree2 non-updated node) to (draw child to parent path)
+      void importParentPos(int childyPos, int parentyPos, int parentxPos) {
+          this.childyPos = childyPos;
+          this.parent.parentyPos = parentyPos;
+          this.parent.parentxPos = parentxPos;
+      }
+
+      // Import (current)'s (xPos & yPos) & work out its (parent & child)'s (path xPos & yPos)
+      void importPos(int xPos, int yPos) {
+          this.xPos = xPos;           // Save (current node's xPos) & (current node's path xPos)
+          this.yPos = yPos;           // Save (current yPos) as (node yPos)
+
+          this.parentyPos = yPos +20; // Save (current yPos) as (parent path yPos)
+
+          // If (current) has (a parent), save (current yPos) as (child path yPos)
+          if (this.parent != null) {this.childyPos = yPos -20;}
+      }
+
+      // Display (each node) method()
+      void displayNode(int xPos, int yPos) {
+          int dataxPos;                   // Node's data xPos
+          int datayPos = yPos + 4;        // (Fixed) node's data yPos for (all nodes)
+          int parentxPos, parentyPos;     // Node's parent xPos & yPos
+
+          // (digitCount) =  # of (chars) in (node's val) to work out node's (dataxPos placement)
+          int digitCount = str(this.val).length();
+
+          // Adjust (node data's xPos) based on (node data's digit count)
+          if (digitCount == 1) {dataxPos = xPos - 3;}
+          if (digitCount == 2) {dataxPos = xPos - 6;}
+          if (digitCount == 3) {dataxPos = xPos - 9;}
+          if (digitCount == 4) {dataxPos = xPos - 12;}
+
+          // Display node with (color according to its value)
+          if (this.insertR) { // (root) > (root.parent)
+              fill(80);  ellipse(xPos, yPos, diameter, diameter); // Display (node's circle)
+              fill(255); text(this.val, dataxPos, datayPos);      // Display (node's data)
+          }
+          else {              // (root) < (root.parent)
+              noFill();  ellipse(xPos, yPos, diameter, diameter); // Display (node's circle)
+              fill(255); text(this.val, dataxPos, datayPos);      // Display (node's data)
+          }
+
+          // (Draw path) from (current node) to (its parent) after (displaying current node)
+          if (this.parent != null) {
+              parentyPos = this.parent.parentyPos;            // Pass in (current node)'s (parent path's yPos)
+              parentxPos = this.parent.xPos;                  // Pass in (current node)'s (parent path's xPos)
+              line(xPos, childyPos, parentxPos, parentyPos);  // (Draw path) from (current node) to (its parent)
+          }
+      }
+  }
+
+  // (Binary Tree) & (Linked Queue Interface) class
+  class Tree<Object> implements Queue<Object> {
+
+      // (Nested Node class) for (Queue Interface)
+      // (!) This class has to be nested in order to work
+      class QNode {
+          Object object;          // Queue Interface (input object)
+          QNode next = null;      // Queue Interface (next pointer)
+      }
+
+      // (Queue Interface)
+      QNode front;                // Remove (pointer) for Queue Interface
+      QNode rear;                 // Insert (pointer) for Queue Interface
+      int size;                   // Queue Interface's size
+
+      // (Binary Tree)
+      Node parent;                // (Parent pointer) to point back to a (node's parent)
+      Node root;                  // Binary Tree (root node)
+      boolean empty;              // Empty (Binary Tree boolean)
+      int rootxPos;               // Tree root's xPos
+      int rootyPos;               // Tree root's yPos
+      int nCount = 0;             // Total (node counts) in BST
+      int yInc = 60;              // (Global) (yInc)(gap between each level) for (BST) insertNode()
+
+      Queue<Node> iQueue;         // Global queue to store (nodes) on (inserted level)
+      int insertedLevel;          // To save recent (inserted node)'s (level)
+      boolean updateThisLevel;    // To tell if (nodes) need (xPos update)
+      Node iNode;                 // To store (tree1 updated BST node)
+      Node tree2Node;             // To store (tree2 non-updated BST node)
+
+      // (Linked Queue)
+      Node head;                  // (Head pointer) for (insert's value linked queue)
+      Node top;                   // Insert (pointer) for (insert's display linked queue)
+      Node last;                  // Insert (pointer) for (insert's display linked queue)
+      boolean iQEmpty;            // Empty (insert's display linked queue)
+
+      int topxPos = 30;           // Starting xPos for (top) (bottom of screen)
+      int topyPos = 470;          // Starting yPos for (top) (bottom of screen)
+      Node treeRoot;              // To get back to (tree root)
+
+      // Constructor for both (Binary Tree & Linked Queue Implementation)
+      Tree() {
+          front = rear = null;    // Queue Interface's pointers
+          size = 0;               // Queue Interface's size
+
+          root = parent = null;   // Binary Tree (root) & (parent)
+          empty = true;           // Binary Tree (empty boolean)
+
+          head = null;            // (Insert val) Linked Queue (insert pointer)
+          top = last = null;      // (Insert display) Linked Queue (insert pointers)
+          iQEmpty = true;         // (Insert display) Linked Queue's (empty boolean)
+
+          // Construct (Linked List queue) from (internal Tree Class) val[]
+          head = new Node(val[0]);                // Add 1st val to (head)
+          Node current = head;                    // Link (current to head)
+          for (int i = 1; i < val.length; i++) {  // Iterate thru val[]
+              Node newNode = new Node(val[i]);    // Create (new node)
+              newNode.prev = current;             // Link (new node).prev back to (current)
+              current.next = newNode;             // Link (current).next to (new node)
+              current = current.next;             // Move (current) forward to link the next (new node)
+          }
+      }
+
+      // (Queue Interface)
+      // enqueue() method
+      public void enqueue(Object object) {
+          QNode temp = rear;      // Temp node to (store input) & link (rear)
+          rear = new QNode();     // Allocate (rear pointer) for (input insertion)
+          rear.object = object;   // Enqueue (input object) into (rear)
+
+          // If queue is empty, set (front) = (rear)
+          if (front == null) {front = rear;}
+
+          // Otherwise, move (rear) forward for (next insertion)
+          else {temp.next = rear;}
+          size++;
+      }
+
+      // (Queue Interface)
+      // dequeue() method
+      public Object dequeue() {
+          if (front == null) {          // If Queue is empty
+              rear = null;              // Make (rear) null
+              return null;
+          }
+          // Otherwise,
+          Object object = front.object; // Temp (obj) to locate (front) to remove (head obj) in queue
+          front = front.next;           // Remove (head obj) by moving (front) forward
+          size--;
+          return object;
+      }
+
+      // (Queue Interface)
+      // (Empty Queue Boolean), returns (true) if (size = 0)
+      public boolean isEmpty() {return (size == 0);}
+
+      // (Queue Interface)
+      // Return (queue's size) method()
+      public int size() {return size;}
+
+      // (Binary Tree)
+      // OUTSIDE Binary Tree insert method()
+      int insert(int val) {
+          int level = 0;                                       // (root)'s level = 0
+          int yPos = 25;                                       // (root)'s yPos = (25) = (level 0)
+          root = insertNode(root, val, level, parent, yPos);   // Calls INSIDE method starting (level 1)
+          this.nCount++;                                       // (Utility) Increase total node counts in tree
+          return val;
+      }
+
+      // INSIDE Binary Tree insert method()
+      Node insertNode(Node root, int val, int level, Node parent, int yPos) { // (Testing)..
+          // Empty tree
+          if (root == null) {
+              root = new Node(val, level, parent, yPos); // (Testing)..
+              empty = false;                             // Tree is no longer empty
+              insertedLevel = root.level;                // Save (inserted node)'s (level)
+              return root;
+          }
+          if (val < root.val)                      // Insert left
+          {root.left = insertNode(root.left, val, level +1, root, yPos +yInc);}   // (yPos) + (yInc) for every level down
+
+          if (val > root.val)                      // Insert right
+          {root.right = insertNode(root.right, val, level +1, root, yPos +yInc);} // (yPos) + (yInc) for every level down
+
+          return root;
+      }
+
+      // (Binary Tree)
+      // OUTSIDE search method()
+      Node find(int val) {
+          Node current;
+          current = findNode(root, val);
+          return current;
+      }
+
+      // (Binary Tree)
+      // INSIDE search method()
+      Node findNode(Node root, int val) {
+          // Empty tree
+          if (empty == true)   {return null;}
+
+          // Input not found
+          if (root == null)    {return null;}
+
+          // Input found
+          if (val == root.val) {return root;}
+
+          // Search left
+          if (val < root.val)  {return findNode(root.left, val);}
+
+          // Search right
+          return findNode(root.right, val);
+      }
+
+      // (Binary Tree)
+      // Get (tree's height) OUTSIDE method()
+      int getHeight() {
+          int h = height(root);           // Calls INSIDE method()
+          return h;
+      }
+
+      // (Binary Tree)
+      // Get (tree's height) INSIDE method()
+      int height(Node root) {
+          if (root == null) {return -1;}
+
+          int lh = height(root.left);
+          int rh = height(root.right);
+
+          // If (left height) > (right height): (left height)++ (or vice versa)
+          return lh > rh ? lh + 1 : rh + 1;
+      }
+
+      // Find (node counts) for (all levels) method() using (level-order traversal)
+      int[] findCounts(Node root) {
+          int[] counts = new int[getHeight() +1]; // counts[size] = # of (max levels)
+
+          counts[0] = 1;                          // (level 0) has 1 (root node)
+          int nextLevel;
+
+          Queue<Node> queue = new Tree<Node>();   // Construct a Node queue
+          queue.enqueue(root);                    // Enqueue root node
+
+          while (!queue.isEmpty()) {
+              root = queue.dequeue();
+              nextLevel = root.level +1;
+
+              if (root.left != null)
+              {queue.enqueue(root.left); counts[nextLevel]++;}
+
+              if (root.right != null)
+              {queue.enqueue(root.right); counts[nextLevel]++;}
+          }
+          return counts;                          // Return counts[]
+      }
+
+      // (Link Queue)
+      // Add node to Linked List Queue method()
+      Node insertToTop(int val) {
+          if (top == null) {               // (Empty queue)..
+              top = new Node(val);         // Add node to (top), (top) is static
+              last = top;                  // Link (last) to (top)
+              iQEmpty = false;             // (Queue) != (empty)
+              return top;
+          }
+          else {                           // (Non-empty queue)..
+              last.next = new Node(val);   // Add node to (last)
+              last = last.next;            // Move (last) forward for next insertion
+              return last;
+          }
+      }
+
+      // (Linked Queue)
+      // Insert (head) node method()
+      void insertHeadToTop() {
+          if (head != null) {
+              insertToTop(head.val);   // Insert 1st (current head) to queue
+              head = head.next;        // Remove (current inserted head)
+          }
+      }
+
+      // (Linked Queue)
+      // Remove (current top)
+      Node removeTop() {
+          Node current = top;
+          top = top.next;
+          return current;
+      }
+
+      // (Linked Queue)
+      // Reset (top's position)
+      void resetTopPos() {topxPos = 30; topyPos = 470;}
+
+      // (Linked Queue)
+      // Update (top)'s position method()
+      void updateTopPos(int xTravel, int yTravel) {
+          this.topxPos += xTravel;
+          this.topyPos += yTravel;
+      }
+
+      // Find (slope) of (child to parent)'s (path) method()
+      int pathSlope(Node child, Node current) {
+
+          int slope = 0;
+          int x1, y1, x2, y2;
+
+          // If (current child) has (a parent), calculate (path slope)
+          if (child.parent != null) {
+              y1 = child.childyPos;    x1 = child.xPos;   // (childyPos)  = (yPos -20)
+              y2 = current.parentyPos; x2 = current.xPos; // (parentyPos) = (yPos)
+
+              slope = (y2 - y1) / (x2 - x1);  // Slope of a line formula
+          }
+          return slope;
+      }
+
+      // Animation method()
+      // (!) tree1.displayInsert()..
+      // Display (top node insertion) then insert (top) into BST
+      Node displayInsert() {
+
+          // If (insert display queue) = (empty), insert 1st (current head) to (top queue)
+          if (this.iQEmpty) {insertHeadToTop();}
+
+          // If (top.inserted) = (true), return (top) for (removal)
+          if (top.inserted) {return top;}
+
+          // Display (top) if (top.inserted) = (false)..
+          top.displayNode(topxPos, topyPos);
+
+          // If (top.inserted) = (false), update (top) until (top) is in the correct BST position..
+          displayInsert2();
+
+          return top;
+      }
+
+      // Animation method()
+      // Display (node insertion) (part 2)
+      // Move (top) from bottom to (BST start position) (before traversing) then..
+      //..(traverse BST) then (insert) to (BST) once done traversing
+      void displayInsert2() {
+          if (!top.inserted) {
+              if (!top.toStartPos) {moveTopToStartPos();}
+              else {traverseBST();}
+          }
+      }
+
+      // Animation method()
+      // Move (top) from (top screen) to (root node)'s position method()
+      void traverseBST() {
+          int val = top.val;                           // (top)'s value
+          Node current;                                // (current node) that (top) is (traversing from)
+
+          // If (empty tree), insert (tree root) right away
+          if (root == null) {
+              top.inserted = true; insert(top.val);    // Insert (top)
+              if (this.nCount == 1) {treeRoot = root;} // Save (tree root) (to get back later)
+          }
+
+          current = treeRoot;                          // Link (current) to temporary (tree root)
+
+          if (val < current.val) {displayLeftInsert(current, val);}   // Traverse left
+          if (val > current.val) {displayRightInsert(current, val);}  // Traverse right
+      }
+
+      // Animation method()
+      // Display (top) insertion as (left child)
+      void displayLeftInsert(Node current, int val) {
+          int yTravel, xTravel, slope;
+          yTravel = 1;
+
+          // Insert (top) to (BST) once (top) (has moved) to (root node) & (current) has (no left child)
+          if (top.moveToRoot && current.left == null) {
+              top.inserted = true; insert(top.val);         // Insert (top) to BST
+              this.treeRoot = root;                         // Get back to (root of tree)
+
+              // Save (all nodes on inserted level) (once)
+              getToInsertedLevel(root);
+          }
+
+          // If (top) (has moved) to (root node) & (current) has (a left child)..
+          if (top.moveToRoot && current.left != null) {
+
+              // Once (top) has moved to (bottom of root node), start traversing (the slope)..
+              if (current.toRootBottom) {
+                  adjustColor(top, val, current.val);       // Adjust (top)'s color based on (its parent)
+
+                  slope = pathSlope(current.left, current); // Find (current) to (child)'s (path slope)
+                  xTravel = yTravel / slope;                // Calculate (xTravel)
+
+                  // Traverse (top) thru (current to child)'s slope
+                  if (topyPos < current.left.childyPos && topxPos != current.left.xPos) {updateTopPos(xTravel, yTravel);}
+                  else {
+                      // Move (top) down into (left child)..
+                      if (topyPos < current.left.yPos) {updateTopPos(0, 4);}
+                      else {
+                          // Start (recursion)
+                          current.toRootBottom = false;     // Reset boolean (for recursion)
+                          this.treeRoot = treeRoot.left;    // Get to (left child) for (recursion)
+                      }
+                  }
+              }
+              // Move (top) to (bottom of current node) before (traversing thru other nodes)
+              else {moveToRootBottom(current);}
+          }
+          // Move (top) to (root node) before (BST traversal) if (top) (is not yet) there
+          else {moveTopToRoot();}
+      }
+
+      // Animation method()
+      // Display (top) insertion as (right child)
+      void displayRightInsert(Node current, int val) {
+          int yTravel, xTravel, slope;
+          yTravel = 1;
+
+          // Insert (top) to (BST) once (top) has moved to (root node) & (current) has (no right child)
+          if (top.moveToRoot && current.right == null) {
+              top.inserted = true; insert(top.val);           // Insert (top) to BST
+              this.treeRoot = root;                           // Get back to (tree root)
+
+              // Save (all nodes on inserted level) (once)
+              getToInsertedLevel(root);
+          }
+
+          // If (top) has moved to (root node) & (current) has (a right child)..
+          if (top.moveToRoot && current.right != null) {
+
+              // Once (top) has moved to (bottom of root node), start traversing (the slope)..
+              if (current.toRootBottom) {
+                  adjustColor(top, val, current.val);         // Adjust (top)'s color based on (its parent)
+
+                  slope = pathSlope(current.right, current);  // Find (current) to (child)'s (path slope)
+                  xTravel = yTravel / slope;                  // Calculate (xTravel)
+
+                  // Traverse (top) thru (current to child)'s slope
+                  if (topyPos < current.right.childyPos && topxPos != current.right.xPos) {updateTopPos(xTravel, yTravel);}
+                  else {
+                      // Move (top) down into (right child)
+                      if (topyPos < current.right.yPos) {updateTopPos(0, 4);}
+                      else {
+                          current.toRootBottom = false;   // Reset boolean (for recursion)
+                          this.treeRoot = treeRoot.right; // Get to (right child), for (recursion)
+                      }
+                  }
+              }
+              // Move (top) to (bottom of current node) before (traversing thru other nodes)
+              else {moveToRootBottom(current);}
+          }
+          // Traverse (top) to (root node) before (BST traversal) if (top) is not yet there
+          else {moveTopToRoot();}
+      }
+
+      // Animation method()
+      // Move (top) from (bottom) screen to (top) screen before BST traversal
+      void moveTopToStartPos() {
+          int startxPos = 470;             // (Top) of screen on the (right) of (tree root)
+          int startyPos = 25;              // Tree root's yPos
+          int xInc = startxPos - topxPos;
+
+          if (topyPos > startyPos) {
+              if (topxPos < startxPos) {updateTopPos(30, -20);}
+              if (topxPos > startxPos) {updateTopPos(xInc, -5);}
+              else {updateTopPos(0, -10);}
+          }
+          else {
+              if (topxPos < startxPos) {updateTopPos(4, 0);}
+              if (topxPos != startxPos) {updateTopPos(xInc, 0);}
+              else {top.toStartPos = true;} // Start BST traversal
+          }
+      }
+
+      // Move (top) to (root node) method() before starting (BST traversal) boolean() method
+      void moveTopToRoot() {
+          if (topxPos > rootxPos) {updateTopPos(-4, 0);}
+          else {top.moveToRoot = true;}
+      }
+
+      // (!) Move (top) to (bottom of root node) before (traversing thru other nodes) method()
+      void moveToRootBottom(Node current) {
+          if (topyPos < current.parentyPos) {updateTopPos(0, 2);}
+          else {current.toRootBottom = true;}
+      }
+
+      // Adjust (node)'s (color) based on (its parent)
+      void adjustColor(Node current, int child, int parent) {
+          if (child > parent) {current.insertR = true; current.insertL = false;}
+          else {current.insertL = true; current.insertR = false;}
+      }
+
+      // (Save) (nodes & their xPos) from the (inserted node)'s (level) method()
+      void saveInsertedLevelNodes(Node current) {
+
+          // Construct (global) (iQueue) if (null)
+          if (iQueue == null) {iQueue = new Tree<Node>();}
+
+          iQueue.enqueue(current);
+      }
+
+      // (Return) & (remove) (1 node) from (BST node insertion)'s (level) method()
+      Node returniNode() {
+          Node current;
+
+          current = iQueue.dequeue();
+
+          return current;
+      }
+
+      // Return (tree1.getToInsertedLevel boolean)
+      boolean returnInsertedLevel() {return this.updateThisLevel;}
+
+      // Get to (inserted node)'s (level) in (tree1 BST) after (BST insertion) and..
+      //..save (all nodes) on that (level) to (global) (iQueue) for (tree2 to update)
+      boolean getToInsertedLevel(Node root) {
+
+          // To count (nodes on each level)
+          int[] counts = new int[getHeight() +1]; // counts[size] = # of (max levels)
+          counts[0] = 1;                          // (level 0) has 1 (root node)
+          int nextLevel;
+
+          int cl;                                 // Current node's level
+          Queue<Node> queue = new Tree<Node>();   // Linked Queue Implementation
+          queue.enqueue(root);                    // Enqueue tree's root node
+
+          while (!queue.isEmpty()) {
+              root = queue.dequeue();             // Returns & remove current (node)
+              cl = root.level;
+              nextLevel = cl +1;                  // (nextLevel) = (current level) +1
+
+              // If not yet on the (inserted node)'s (level)
+              if (cl != insertedLevel) {
+
+                  if (root.left != null) {        // Enqueue (left child) if (there's one)
+                      queue.enqueue(root.left);
+                      counts[nextLevel]++;
+                  }
+                  if (root.right != null) {       // Enqueue (right child) if (there's one)
+                      queue.enqueue(root.right);
+                      counts[nextLevel]++;
+                  }
+              }
+              // On (inserted node)'s (level)
+              else {
+                  // If more than (1 node) on (inserted level), add (current root) to (tree1 iQueue)
+                  if (counts[cl] > 1) {saveInsertedLevelNodes(root);}
+
+                  // Less than (1 node) after (insertion) on (inserted level)
+                  else {
+                      this.updateThisLevel = false;  // Boolean to update (tree2 inserted level)
+                      return;
+                  }
+              }
+          }
+          // Return (true) once (all nodes) are enqueued to (tree1 iQueue)
+          if (queue.isEmpty()) {
+              this.updateThisLevel = true;         // Boolean to update (tree2 inserted level)
+              return;
+          }
+          return;
+      }
+
+      // Method() to update (nodes) on (inserted level)
+      void updateiNodePos(Node current, int xTravel) {current.xPos += xTravel;}
+
+      // Animation method()
+      // Update (xPos) for (all nodes) on (inserted level) after (insertion)
+      boolean updateInsertedLevel() {
+
+          // Finished updating (inserted level)
+          if (iQueue.isEmpty() && tree2Node == null) {return true;}
+
+          // If (global tree2Node) has not been (returned) an object, start here..
+          if (tree2Node == null) {
+
+              // (!)(iNode) = (tree1 updated node)
+              // (Return) & (remove) (updated tree1 iNode) from (tree2 iQueue)
+              if (iNode == null) {iNode = iQueue.dequeue();}
+
+              // (!)(tree2Node) = (tree2 non-updated node)
+              tree2Node = find(iNode.val);      // Find (non-updated iNode) in (tree2) with (BST search)
+
+              // (!)When a (node) (cannot) be found in (tree2 BST)..
+              if (tree2Node == null) {
+
+                  //..Insert (that node) into (tree2 BST)..
+                  insert(iNode.val);
+
+                  //..Find the (recently-inserted node) in (tree2 BST)
+                  tree2Node = find(iNode.val);
+
+                  // Import (tree1 current node)'s (childPath's yPos) & (parentPath xPos & yPos) into (recently-inserted tree2 node)
+                  tree2Node.importParentPos(iNode.childyPos, iNode.parent.parentyPos, iNode.parent.parentxPos);
+
+                  // Adjust (recently inserted node)'s (color) based on (its parent)
+                  adjustColor(tree2Node, tree2Node.val, tree2Node.parent.val);
+              }
+
+              // Decision to move (tree2 non-updated node) (left or right)
+              if (tree2Node != null) {
+                  if (tree2Node.xPos > iNode.xPos) {tree2Node.moveLeft = true;}
+                  if (tree2Node.xPos < iNode.xPos) {tree2Node.moveRight = true;}
+              }
+          }
+
+          // Once (non-updated tree2 node) has been (returned)..
+          if (tree2Node != null) {
+
+              // Update (tree2Node) either (left or right)
+              if (tree2Node.moveLeft)  {moveTree2NodeToLeft(tree2Node, iNode);}
+              else if (tree2Node.moveRight) {moveTree2NodeToRight(tree2Node, iNode);}
+          }
+          return false;
+      }
+
+      // Animation method()
+      // Update (tree2 node xPos) to the (left) until = (tree1 node xPos)
+      boolean moveTree2NodeToLeft(Node current2, Node current1) {
+
+          // If (tree2 non-updated node) has not yet finished (updating)..
+          if (current2.xPos > current1.xPos) {
+              updateiNodePos(current2, -15);        // Update (tree2 node)
+              return false;
+          }
+          else {
+              this.tree2Node = null;                // Reset (tree2Node) to (stop updating) & to (store next one)
+              this.iNode = null;                    // Reset (tree1Node) to (stop updating) & to (store next one)
+              current2.moveLeft = false;            // Reset (tree2 node boolean)
+          }
+          return false;
+      }
+
+      // Animation method()
+      // Update (tree2 node xPos to the right) until = (tree1 node xPos)
+      boolean moveTree2NodeToRight(Node current2, Node current1) {
+
+          // If (tree2 non-updated node) has not yet finished (updating)..
+          if (current2.xPos < current1.xPos) {
+              updateiNodePos(current2, 15);        // Update (tree2 node)
+              return false;
+          }
+          else {
+              this.tree2Node = null;                // Reset (tree2Node) to (stop updating) & to (store next one)
+              this.iNode = null;                    // Reset (tree1Node) to (stop updating) & to (store next one)
+              current2.moveRight = false;           // Reset (tree2 node boolean)
+          }
+          return false;
+      }
+
+      // Animation method()
+      // Display val[] OUTSIDE method()
+      void displayValArray() {
+          int xPos = 30;  int yPos = 520;
+
+          int xPos2 = 30; int yPos2 = yPos + 50;
+
+          int xInc = 42;
+
+          displayArray(head, xPos, yPos, xPos2, yPos2, xInc);
+      }
+
+      // Animation method()
+      // Display val[] INSIDE method()
+      void displayArray(Node head, int xPos, int yPos, int xPos2, int yPos2, int xInc) {
+          if (head == null) {xPos = 30;}                 // (Base case)
+          else {
+              if (xPos >= width - 49) {                  // (2nd row)
+                  head.displayNode(xPos2, yPos2); xPos2 += xInc;
+                  displayArray(head.next, xPos, yPos, xPos2, yPos2, xInc);
+              }
+              else {                                     // (1st row)
+                  head.displayNode(xPos, yPos);   xPos += xInc;
+                  displayArray(head.next, xPos, yPos, xPos2, yPos2, xInc);
+              }
+          }
+      }
+
+      // (Calculate) & (import) (all node's positions) into (each node) method() for (tree1) & (tree2)
+      void importNodePos(Node root) {
+          int xPos = 0;   int yPos = 0;
+
+          int xGap = 0;    // (Gap) between (each node) on (each level)
+
+          int pl = 0;      // (pl) = (prev node's level) for comparison..
+                           //..with (next node) in (queue)
+
+          Queue<Node> queue = new Tree<Node>();   // Linked Queue Implementation
+          queue.enqueue(root);                    // Enqueue tree's root node
+
+          // nodeCounts[] = all (tree levels), each [i] = (each level)
+          int[] nodeCounts = findCounts(root);
+
+          // While queue is not yet empty
+          while (!queue.isEmpty()) {
+              root = queue.dequeue();  // Returns & remove current (node)
+              int cl = root.level;     // (cl) = (current node)'s (level)
+
+              // Work out (xGap) for (all nodes) on (current level)
+              xGap  = (width - nodeCounts[cl] * diameter) / (nodeCounts[cl] + 1) + diameter - 2;
+
+              // Get (node's xPos) before (displaying)
+              root.childxPos();
+              if (cl == 0) {rootyPos = yPos = 25; rootxPos = xPos = xGap;} // (Root level)
+              else {                                                       // (Non root level)
+                  if (cl > pl) {       // (current level) > (prev level)..
+                      yPos += yInc;    // (New level)
+                      xPos = xGap;     // Update new xPos
+                  }
+                  else {xPos += xGap;} // (same level) -> (current level) = (prev level)..
+                                       //..update new xPos
+              }
+
+              root.importPos(xPos, yPos);    // Import (node's xPos & yPos)
+
+              // Save (current node's level) to compare with (next node's level)..
+              //..to work out (next node's yPos)
+              pl = cl;
+
+              // Enqueue (1 left child) to queue, (Testing)..
+              if (root.left != null) {queue.enqueue(root.left);}
+
+              // Enqueue (1 right child) to queue, (Testing)..
+              if (root.right != null) {queue.enqueue(root.right);}
+          }
+      }
+
+      // Display (all BST nodes) with (imported positions) for (tree2)
+      void display(Node root) {
+
+          Queue<Node> queue = new Tree<Node>(); // Linked Queue Implementation
+          queue.enqueue(root);                  // Enqueue tree's root node
+
+          // While queue is not yet empty
+          while (!queue.isEmpty()) {
+              root = queue.dequeue();           // Returns & remove current (node)
+
+              root.displayNode(root.xPos, root.yPos);  // Display node
+
+              // Enqueue (1 left child) to queue
+              if (root.left != null) {queue.enqueue(root.left);}
+
+              // Enqueue (1 right child) to queue
+              if (root.right != null) {queue.enqueue(root.right);}
+          }
+      }
+
+      // Display instruction
+      void instruction() {
+          int xPos = 580; int yPos = 16;
+
+          noFill();  ellipse(xPos, yPos, 30, 30);
+          textSize(15); fill(255); text("= smaller than parent (r.left)", xPos +20, yPos +5);
+
+          int yPos2 = yPos +35;
+          fill(80);   ellipse(xPos, yPos2, 30, 30);
+          textSize(15); fill(255); text("= greater than parent (r.right) ", xPos +20, yPos2 +5);
+      }
+
+  }
+
+  // (Binary Tree) class with methods() to update (tree2) from (tree1)
+  class BinaryTree {
+      Tree tree1 = new Tree();     // Original (updated tree) (non-display)
+      Tree tree2 = new Tree();     // (Non-updated tree)  (to display)
+
+      // (Return) & (enqueue) (all nodes) from (tree1)'s (iQueue) to (tree2)'s (iQueue) for (tree2 to update)
+      void returniNodeToTree2() {
+          if (tree1.iQueue != null) {
+              while (!tree1.iQueue.isEmpty()) {
+                  Node current = tree1.returniNode();    // Extract (iNode) from (tree1 iQueue)
+                  tree2.saveInsertedLevelNodes(current); // Save (tree1 iNodes) to (tree2 iQueue)
+              }
+          }
+      }
+
+      // (!) Animation method()
+      // Display (nodes insertion, traversal, and whole BST)
+      void display() {
+
+          Node current;                        // To link (top)
+
+          // Display (updated tree2)
+          if (tree2.root != null) {tree2.display(tree2.root);}
+
+          // Display (top)'s (BST traversal), then (insert top) to (tree1), then return (top)
+          current = tree1.displayInsert();
+
+          // If (returned top) has (finished traversing thru BST) (inserted = true)
+          if (current.inserted) {
+
+              // Import (tree1 BST) (node's positions) into (each node) (once)
+              if (tree1.root != null && current.importNodePos == false) {
+                  tree1.importNodePos(tree1.root);
+                  current.importNodePos = true;     // Stop importing (tree1 node pos)
+              }
+
+              // (Tree2 inserted level) (needs) an (update)..
+              if (tree1.returnInsertedLevel()) {    //..if getToInsertedLevel() returns (true) then..
+                  returniNodeToTree2();             //..return (all iNodes) from (tree1 iQueue) to (tree2 iQueue) for (tree2 to update)
+
+                  // (!) Animation method()
+                  // (!) Update (xPos) for all (tree2 non-updated node)..
+                  if (!tree2.updateInsertedLevel()) {}
+
+                  // Once (done updating) all (tree2 non-updated node),
+                  else {
+                      tree1.resetTopPos();              // Reset (top)'s position
+                      tree1.insertHeadToTop();          // Insert (next head) to (top queue)
+                      tree1.removeTop();                // Remove (current top)
+                      tree2.importNodePos(tree2.root);  // Import (tree2 BST) (node's position) into (each node)
+
+                  }
+              }
+              // (Tree2 inserted level) (does not) (need) an (update)..
+              else {
+                  tree1.resetTopPos();              // Reset (top)'s position
+                  tree1.insertHeadToTop();          // Insert (next head) to (top queue)
+                  tree1.removeTop();                // Remove (current top)
+
+                  tree2.insert(current.val);        // Insert (current) into (tree2)
+                  tree2.importNodePos(tree2.root);  // Import (tree2 BST) (node's position) into (each node)
+
+              }
+          }
+          // (!) Animation method()
+          tree1.displayValArray();                  // Queue of (nodes) for (insertion)
+          tree1.instruction();
+      }
+  }
+		</script>
+		<canvas> </canvas>
+	</body>
+</html>
